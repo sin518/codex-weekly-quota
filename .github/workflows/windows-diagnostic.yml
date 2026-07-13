@@ -48,13 +48,23 @@ jobs:
         working-directory: desktop-app
         shell: pwsh
         run: |
+          Get-Content windows-build.log -Tail 120 |
+            Where-Object { $_ -notmatch 'TAURI_SIGNING|secret' } |
+            Set-Content windows-build-public.log -Encoding utf8
           "## Windows build result" >> $env:GITHUB_STEP_SUMMARY
           "Exit code: ${{ steps.build.outputs.exit_code }}" >> $env:GITHUB_STEP_SUMMARY
           '```text' >> $env:GITHUB_STEP_SUMMARY
-          Get-Content windows-build.log -Tail 120 |
-            Where-Object { $_ -notmatch 'TAURI_SIGNING|secret' } |
+          Get-Content windows-build-public.log |
             Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           '```' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload sanitized diagnostic
+        if: always()
+        working-directory: desktop-app
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload v0.1.4 windows-build-public.log --clobber --repo sin518/codex-weekly-quota
 
       - name: Preserve failure status
         if: steps.build.outputs.exit_code != '0'
