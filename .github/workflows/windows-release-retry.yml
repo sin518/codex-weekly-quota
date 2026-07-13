@@ -1,27 +1,16 @@
-name: Publish desktop release
+name: Windows release retry
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - ".github/workflows/windows-release-retry.yml"
 
 jobs:
-  publish-tauri:
+  publish-windows:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            args: --target aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-          - platform: windows-latest
-            args: ""
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -34,8 +23,6 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
@@ -46,12 +33,11 @@ jobs:
         working-directory: desktop-app
         run: npm ci
 
-      - name: Build and publish signed updater artifacts
+      - name: Build and publish Windows artifacts
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && '-' || '' }}
         with:
           projectPath: desktop-app
           tagName: v__VERSION__
@@ -59,4 +45,3 @@ jobs:
           releaseBody: Download the installer for your platform. The in-app updater uses the signed latest.json manifest from this release.
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
