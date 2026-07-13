@@ -50,7 +50,11 @@ body,
   gap: 8px;
   padding: 0 7px 0 10px;
   white-space: nowrap;
-  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.quota-capsule:active {
+  cursor: grabbing;
 }
 
 .sparkle {

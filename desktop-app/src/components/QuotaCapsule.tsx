@@ -4,9 +4,10 @@ interface QuotaCapsuleProps {
   quota: WeeklyQuota;
   updateAvailable: boolean;
   onOpenSettings: () => void;
+  onStartDragging: () => void;
 }
 
-export function QuotaCapsule({ quota, updateAvailable, onOpenSettings }: QuotaCapsuleProps) {
+export function QuotaCapsule({ quota, updateAvailable, onOpenSettings, onStartDragging }: QuotaCapsuleProps) {
   const usedPercent = Math.min(100, Math.max(0, quota.usedPercent));
   const statusText = !quota.synced
     ? "同步失败"
@@ -16,7 +17,14 @@ export function QuotaCapsule({ quota, updateAvailable, onOpenSettings }: QuotaCa
   const percentageText = quota.synced ? `${usedPercent}%` : "--%";
 
   return (
-    <section className="quota-capsule" aria-label={quota.synced ? `Codex 周额度已使用 ${usedPercent}%` : "Codex 周额度同步失败"}>
+    <section
+      className="quota-capsule"
+      aria-label={quota.synced ? `Codex 周额度已使用 ${usedPercent}%` : "Codex 周额度同步失败"}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+        onStartDragging();
+      }}
+    >
       <svg className="sparkle" viewBox="0 0 24 24" aria-hidden="true">
         <path fill="currentColor" d="M12 1.8c.7 5.8 4.4 9.5 10.2 10.2-5.8.7-9.5 4.4-10.2 10.2C11.3 16.4 7.6 12.7 1.8 12 7.6 11.3 11.3 7.6 12 1.8Z" />
       </svg>

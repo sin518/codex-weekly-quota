@@ -25,3 +25,4 @@ dist-ssr
 
 # Tauri private key
 src-tauri/tauri.key
+src-tauri/tauri.key.*.backup

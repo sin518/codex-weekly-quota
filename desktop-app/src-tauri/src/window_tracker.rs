@@ -1,9 +1,32 @@
-use tauri::{AppHandle, Manager, PhysicalPosition};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use tauri::{AppHandle, Manager, PhysicalPosition, State};
 
 const OVERLAY_WIDTH: i32 = 300;
 const HEADER_OFFSET_Y: i32 = 4;
+const SNAP_DISTANCE_Y: i32 = 72;
+const EDGE_PADDING: i32 = 8;
+
+#[derive(Debug)]
+struct TrackingMode {
+    dragging: bool,
+    attached: bool,
+    offset_x: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct WindowTrackerState(Arc<Mutex<TrackingMode>>);
+
+impl Default for WindowTrackerState {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(TrackingMode {
+            dragging: false,
+            attached: true,
+            offset_x: 0,
+        })))
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct TargetWindow {
@@ -13,45 +36,111 @@ struct TargetWindow {
     minimized: bool,
 }
 
-pub fn start(app: AppHandle) {
+pub fn start(app: AppHandle, state: WindowTrackerState) {
     thread::spawn(move || {
         let mut has_tracked_codex = false;
         loop {
             if let Some(overlay) = app.get_webview_window("quota-overlay") {
+                let (dragging, attached, offset_x) = state
+                    .0
+                    .lock()
+                    .map(|mode| (mode.dragging, mode.attached, mode.offset_x))
+                    .unwrap_or((false, true, 0));
+
+                if dragging {
+                    thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
+
                 match find_codex_window() {
-                Some(target) if !target.minimized && target.width > OVERLAY_WIDTH => {
-                    let x = target.x + (target.width - OVERLAY_WIDTH) / 2;
-                    let y = target.y + HEADER_OFFSET_Y;
-                    let _ = overlay.set_position(PhysicalPosition::new(x, y));
-                    let _ = overlay.show();
-                    has_tracked_codex = true;
-                }
-                Some(_) => {
-                    let _ = overlay.hide();
-                }
-                None if has_tracked_codex => {
-                    // A previously tracked Codex window disappeared or was minimized.
-                    let _ = overlay.hide();
-                }
-                None => {
-                    // First-launch fallback: missing Accessibility/Automation permission must not
-                    // make the app look broken. Keep the capsule visible at the top of the primary
-                    // display until window tracking becomes available.
-                    if let Ok(Some(monitor)) = overlay.primary_monitor() {
-                        let monitor_position = monitor.position();
-                        let monitor_size = monitor.size();
-                        let x = monitor_position.x
-                            + (monitor_size.width as i32 - OVERLAY_WIDTH) / 2;
-                        let y = monitor_position.y + 44;
-                        let _ = overlay.set_position(PhysicalPosition::new(x, y));
+                    Some(target) if !target.minimized && target.width > OVERLAY_WIDTH => {
+                        if attached {
+                            let centered_x = target.x + (target.width - OVERLAY_WIDTH) / 2;
+                            let x = clamp_to_target(centered_x + offset_x, target);
+                            let y = target.y + HEADER_OFFSET_Y;
+                            let _ = overlay.set_position(PhysicalPosition::new(x, y));
+                        }
+                        let _ = overlay.show();
+                        has_tracked_codex = true;
                     }
-                    let _ = overlay.show();
-                }
+                    Some(_) => {
+                        if attached {
+                            let _ = overlay.hide();
+                        }
+                    }
+                    None if has_tracked_codex => {
+                        if attached {
+                            let _ = overlay.hide();
+                        }
+                    }
+                    None => {
+                        // Keep first launch visible even when Accessibility permission is missing.
+                        if attached {
+                            if let Ok(Some(monitor)) = overlay.primary_monitor() {
+                                let monitor_position = monitor.position();
+                                let monitor_size = monitor.size();
+                                let x = monitor_position.x
+                                    + (monitor_size.width as i32 - OVERLAY_WIDTH) / 2;
+                                let y = monitor_position.y + 44;
+                                let _ = overlay.set_position(PhysicalPosition::new(x, y));
+                            }
+                        }
+                        let _ = overlay.show();
+                    }
                 }
             }
             thread::sleep(Duration::from_millis(500));
         }
     });
+}
+
+#[tauri::command]
+pub fn begin_overlay_drag(state: State<'_, WindowTrackerState>) {
+    if let Ok(mut mode) = state.0.lock() {
+        mode.dragging = true;
+    }
+}
+
+#[tauri::command]
+pub fn end_overlay_drag(app: AppHandle, state: State<'_, WindowTrackerState>) {
+    let overlay = app.get_webview_window("quota-overlay");
+    let current_position = overlay.as_ref().and_then(|window| window.outer_position().ok());
+    let target = find_codex_window();
+
+    if let Ok(mut mode) = state.0.lock() {
+        mode.dragging = false;
+
+        let Some(position) = current_position else {
+            return;
+        };
+        let Some(target) = target.filter(|target| !target.minimized) else {
+            mode.attached = false;
+            return;
+        };
+
+        let header_y = target.y + HEADER_OFFSET_Y;
+        let overlaps_horizontally = position.x + OVERLAY_WIDTH >= target.x - EDGE_PADDING
+            && position.x <= target.x + target.width + EDGE_PADDING;
+        let close_to_header = (position.y - header_y).abs() <= SNAP_DISTANCE_Y;
+
+        if overlaps_horizontally && close_to_header && target.width > OVERLAY_WIDTH {
+            let snapped_x = clamp_to_target(position.x, target);
+            let centered_x = target.x + (target.width - OVERLAY_WIDTH) / 2;
+            mode.attached = true;
+            mode.offset_x = snapped_x - centered_x;
+            if let Some(overlay) = overlay {
+                let _ = overlay.set_position(PhysicalPosition::new(snapped_x, header_y));
+            }
+        } else {
+            mode.attached = false;
+        }
+    }
+}
+
+fn clamp_to_target(x: i32, target: TargetWindow) -> i32 {
+    let min_x = target.x + EDGE_PADDING;
+    let max_x = target.x + target.width - OVERLAY_WIDTH - EDGE_PADDING;
+    x.clamp(min_x, max_x.max(min_x))
 }
 
 #[cfg(target_os = "macos")]

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import { QuotaCapsule } from "./components/QuotaCapsule";
@@ -71,6 +72,17 @@ function QuotaOverlay() {
     await settings.setFocus();
   };
 
+  const startDragging = async () => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const overlay = getCurrentWebviewWindow();
+    await invoke("begin_overlay_drag");
+    try {
+      await overlay.startDragging();
+    } finally {
+      await invoke("end_overlay_drag");
+    }
+  };
+
   return (
     <main className="app-shell">
       {quota ? (
@@ -78,6 +90,7 @@ function QuotaOverlay() {
           quota={quota}
           updateAvailable={updateAvailable}
           onOpenSettings={() => void openSettings()}
+          onStartDragging={() => void startDragging()}
         />
       ) : (
         <div className="loading-pill" />
