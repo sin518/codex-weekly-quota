@@ -181,7 +181,8 @@ end tell
 #[cfg(target_os = "windows")]
 fn find_codex_window() -> Option<TargetWindow> {
     use std::sync::Mutex;
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+    use windows_sys::core::BOOL;
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         EnumWindows, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, IsIconic,
         IsWindowVisible,

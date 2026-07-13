@@ -99,3 +99,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/publish-windows.ps1
+
+      - name: Remove temporary v0.1.4 diagnostic
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete-asset v0.1.4 windows-build-public.log --yes --repo sin518/codex-weekly-quota
