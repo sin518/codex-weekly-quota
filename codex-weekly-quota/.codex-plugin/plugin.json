@@ -1,0 +1,18 @@
+{
+  "name": "codex-weekly-quota",
+  "version": "0.1.2",
+  "description": "Control and diagnose the local Codex weekly quota overlay.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Weekly Quota",
+    "shortDescription": "Control the weekly quota overlay.",
+    "longDescription": "Starts, stops, and diagnoses the cross-platform Codex weekly quota companion overlay without reading account cookies or credentials.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": ["Local desktop overlay", "Quota status diagnostics"],
+    "defaultPrompt": "Check the Codex weekly quota overlay and help me start or diagnose it."
+  }
+}
