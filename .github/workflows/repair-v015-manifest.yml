@@ -44,5 +44,7 @@ jobs:
              | .platforms["windows-x86_64-nsis"] = {url: $nsis_url, signature: $nsis_signature}' \
             latest.json > latest.fixed.json
 
-          gh release upload "$tag" latest.fixed.json#latest.json --clobber --repo "$repo"
+          mv -f latest.fixed.json latest.json
+          gh release upload "$tag" latest.json --clobber --repo "$repo"
+          gh release delete-asset "$tag" latest.fixed.json --yes --repo "$repo" || true
           gh release delete-asset v0.1.4 windows-build-public.log --yes --repo "$repo" || true
