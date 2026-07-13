@@ -33,15 +33,15 @@ jobs:
         working-directory: desktop-app
         run: npm ci
 
-      - name: Build and publish Windows artifacts
-        uses: tauri-apps/tauri-action@v1
+      - name: Build signed Windows artifacts
+        working-directory: desktop-app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        with:
-          projectPath: desktop-app
-          tagName: v__VERSION__
-          releaseName: Codex Weekly Quota v__VERSION__
-          releaseBody: Download the installer for your platform. The in-app updater uses the signed latest.json manifest from this release.
-          releaseDraft: false
-          prerelease: false
+        run: npm run tauri build
+
+      - name: Upload Windows artifacts and merge updater manifest
+        working-directory: desktop-app
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/publish-windows.ps1

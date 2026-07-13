@@ -18,8 +18,6 @@ jobs:
             args: --target aarch64-apple-darwin
           - platform: macos-latest
             args: --target x86_64-apple-darwin
-          - platform: windows-latest
-            args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -60,3 +58,43 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish-windows:
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop-app/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri -> target
+
+      - name: Install frontend dependencies
+        working-directory: desktop-app
+        run: npm ci
+
+      - name: Build signed Windows artifacts
+        working-directory: desktop-app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: npm run tauri build
+
+      - name: Upload Windows artifacts and merge updater manifest
+        working-directory: desktop-app
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/publish-windows.ps1
