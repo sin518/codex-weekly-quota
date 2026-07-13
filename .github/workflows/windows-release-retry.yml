@@ -35,9 +35,22 @@ jobs:
 
       - name: Build signed Windows artifacts
         working-directory: desktop-app
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: npm run tauri build
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          & npm run tauri build *> windows-build.log
+          $buildExitCode = $LASTEXITCODE
+          if ($buildExitCode -ne 0) {
+            Get-Content windows-build.log -Tail 160 |
+              Where-Object { $_ -notmatch 'TAURI_SIGNING|secret' } |
+              Set-Content windows-build-public.log -Encoding utf8
+            gh release upload v0.1.4 windows-build-public.log --clobber --repo sin518/codex-weekly-quota
+            exit $buildExitCode
+          }
+          Write-Host "Windows build completed successfully."
 
       - name: Upload Windows artifacts and merge updater manifest
         working-directory: desktop-app
