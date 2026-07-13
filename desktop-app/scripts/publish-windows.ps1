@@ -20,8 +20,8 @@ gh release upload $tag $msiFile.FullName $msiSig.FullName $nsisFile.FullName $ns
   --clobber --repo $repo
 
 $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-$msiAsset = $release.assets | Where-Object name -eq $msiFile.Name
-$nsisAsset = $release.assets | Where-Object name -eq $nsisFile.Name
+$msiAsset = $release.assets | Where-Object { $_.name -like "*_x64_en-US.msi" }
+$nsisAsset = $release.assets | Where-Object { $_.name -like "*_x64-setup.exe" }
 if (-not $msiAsset -or -not $nsisAsset) {
   throw "Uploaded Windows assets were not found in the GitHub release."
 }
