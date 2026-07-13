@@ -1,3 +1,7 @@
 .DS_Store
 **/.DS_Store
 .claude/
+
+# Local desktop installers (keep the folder, ignore generated packages)
+releases/*
+!releases/.gitkeep

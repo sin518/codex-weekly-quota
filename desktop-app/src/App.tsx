@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
@@ -65,11 +65,11 @@ function QuotaOverlay() {
   }, []);
 
   const openSettings = async () => {
-    const settings = await WebviewWindow.getByLabel("settings");
-    if (!settings) return;
-    await settings.center();
-    await settings.show();
-    await settings.setFocus();
+    try {
+      await invoke("open_settings");
+    } catch (error) {
+      console.error("打开设置失败", error);
+    }
   };
 
   const startDragging = async () => {

@@ -150,6 +150,12 @@ body,
   background: rgba(255, 255, 255, 0.58);
 }
 
+.settings-button:active,
+.close-button:active,
+.primary-button:active {
+  transform: scale(0.94);
+}
+
 .settings-button svg {
   width: 14px;
   height: 14px;
@@ -202,14 +208,36 @@ body,
   letter-spacing: -0.7px;
 }
 
+.settings-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version-badge {
+  padding: 3px 7px;
+  border: 1px solid rgba(99, 124, 244, 0.18);
+  border-radius: 999px;
+  color: #5369d5;
+  background: rgba(99, 124, 244, 0.1);
+  font-size: 9px;
+  font-weight: 720;
+  line-height: 1;
+  letter-spacing: 0.1px;
+}
+
 .close-button {
   width: 26px;
   height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  flex: 0 0 auto;
   border-radius: 50%;
   color: rgba(24, 32, 45, 0.7);
   background: rgba(255, 255, 255, 0.52);
   font-size: 20px;
-  line-height: 22px;
+  line-height: 1;
   -webkit-app-region: no-drag;
 }
 
@@ -241,21 +269,54 @@ body,
   gap: 8px;
 }
 
-.strategy-options label {
+.strategy-option {
+  width: calc(100% + 12px);
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 36px;
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
-.strategy-options input {
+.strategy-option:hover,
+.strategy-option:focus-visible {
+  background: rgba(99, 124, 244, 0.07);
+  outline: none;
+}
+
+.radio-indicator {
   width: 15px;
   height: 15px;
-  margin: 0;
-  accent-color: #637cf4;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid rgba(24, 32, 45, 0.35);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
 }
 
-.strategy-options span {
+.strategy-option[aria-checked="true"] .radio-indicator {
+  border-color: #637cf4;
+}
+
+.strategy-option[aria-checked="true"] .radio-indicator::after {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #637cf4;
+  content: "";
+}
+
+.strategy-copy {
   display: grid;
   gap: 1px;
 }

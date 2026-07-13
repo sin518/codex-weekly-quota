@@ -1,13 +1,15 @@
 {
   "name": "codex-weekly-quota-desktop",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.1.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release": "tauri build && node scripts/collect-installers.mjs",
+    "collect:installers": "node scripts/collect-installers.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

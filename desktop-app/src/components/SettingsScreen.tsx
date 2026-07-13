@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import {
@@ -20,6 +20,14 @@ export function SettingsScreen() {
 
   useEffect(() => {
     void getVersion().then(setVersion).catch(() => setVersion("开发预览"));
+  }, []);
+
+  useEffect(() => {
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") void close();
+    };
+    window.addEventListener("keydown", closeWithEscape);
+    return () => window.removeEventListener("keydown", closeWithEscape);
   }, []);
 
   const changeStrategy = (next: UpdateStrategy) => {
@@ -62,32 +70,56 @@ export function SettingsScreen() {
     }
   };
 
-  const close = () => void getCurrentWebviewWindow().hide();
+  const close = async () => {
+    try {
+      await invoke("close_settings");
+    } catch (error) {
+      console.error("关闭设置失败", error);
+    }
+  };
+  const versionLabel = version === "—" || version === "开发预览" ? version : `v${version}`;
 
   return (
     <main className="settings-shell">
       <header className="settings-header" data-tauri-drag-region>
         <div>
           <p className="eyebrow">CODEX WEEKLY QUOTA</p>
-          <h1>设置</h1>
+          <div className="settings-title-row">
+            <h1>设置</h1>
+            <span className="version-badge">{versionLabel}</span>
+          </div>
         </div>
-        <button className="close-button" type="button" onClick={close} aria-label="关闭设置">×</button>
+        <button className="close-button" type="button" onClick={() => void close()} aria-label="关闭设置">×</button>
       </header>
 
       <section className="settings-card">
         <div className="setting-copy">
           <strong>检查更新</strong>
-          <span>当前版本 {version}</span>
+          <span>当前版本 {versionLabel}</span>
         </div>
         <div className="strategy-options" role="radiogroup" aria-label="更新检查策略">
-          <label>
-            <input type="radio" name="strategy" checked={strategy === "automatic"} onChange={() => changeStrategy("automatic")} />
-            <span><b>启动时自动检查</b><small>发现新版时在设置按钮显示提示</small></span>
-          </label>
-          <label>
-            <input type="radio" name="strategy" checked={strategy === "manual"} onChange={() => changeStrategy("manual")} />
-            <span><b>仅手动检查</b><small>只在点击检查按钮时联网</small></span>
-          </label>
+          <button
+            className="strategy-option"
+            type="button"
+            role="radio"
+            aria-checked={strategy === "automatic"}
+            onPointerDown={(event) => event.button === 0 && changeStrategy("automatic")}
+            onClick={() => changeStrategy("automatic")}
+          >
+            <span className="radio-indicator" aria-hidden="true" />
+            <span className="strategy-copy"><b>启动时自动检查</b><small>发现新版时在设置按钮显示提示</small></span>
+          </button>
+          <button
+            className="strategy-option"
+            type="button"
+            role="radio"
+            aria-checked={strategy === "manual"}
+            onPointerDown={(event) => event.button === 0 && changeStrategy("manual")}
+            onClick={() => changeStrategy("manual")}
+          >
+            <span className="radio-indicator" aria-hidden="true" />
+            <span className="strategy-copy"><b>仅手动检查</b><small>只在点击检查按钮时联网</small></span>
+          </button>
         </div>
       </section>
 
