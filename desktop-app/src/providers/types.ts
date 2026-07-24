@@ -3,12 +3,27 @@ export interface WeeklyQuota {
   windowDurationMins: number;
   resetsAt: number | null;
   resetCreditsAvailable: number | null;
-  synced: boolean;
-  syncedAt: string;
-  source: "codex-app-server" | "mock" | "unavailable";
-  syncError?: string;
+  syncedAt: number;
+  source: "codex-app-server" | "mock";
 }
 
 export interface QuotaProvider {
   getWeeklyQuota(): Promise<WeeklyQuota>;
+}
+
+export type QuotaErrorCode =
+  | "codex-cli-missing"
+  | "app-server-unavailable"
+  | "quota-read-timeout"
+  | "not-signed-in"
+  | "quota-response-error"
+  | "quota-response-missing"
+  | "weekly-window-missing"
+  | "weekly-window-ambiguous"
+  | "quota-data-invalid"
+  | "unknown";
+
+export interface QuotaReadError {
+  code: QuotaErrorCode;
+  userMessage: string;
 }

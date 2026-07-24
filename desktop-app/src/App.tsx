@@ -1,13 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import { QuotaCapsule } from "./components/QuotaCapsule";
 import { SettingsScreen } from "./components/SettingsScreen";
-import { codexQuotaProvider } from "./providers/codexQuotaProvider";
-import { mockQuotaProvider } from "./providers/mockQuotaProvider";
-import type { WeeklyQuota } from "./providers/types";
+import { useWeeklyQuota } from "./hooks/useWeeklyQuota";
 import { getUpdateStrategy } from "./updates/preferences";
 
 function App() {
@@ -19,42 +17,10 @@ function App() {
 }
 
 function QuotaOverlay() {
-  const [quota, setQuota] = useState<WeeklyQuota | null>(null);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const refresh = async () => {
-      try {
-        const provider = window.__TAURI_INTERNALS__ ? codexQuotaProvider : mockQuotaProvider;
-        const nextQuota = await provider.getWeeklyQuota();
-        if (active) setQuota(nextQuota);
-      } catch (error) {
-        if (active) {
-          if (!window.__TAURI_INTERNALS__) {
-            setQuota(await mockQuotaProvider.getWeeklyQuota());
-          } else {
-            setQuota({
-              usedPercent: 0,
-              windowDurationMins: 0,
-              resetsAt: null,
-              resetCreditsAvailable: null,
-              synced: false,
-              syncedAt: new Date().toISOString(),
-              source: "unavailable",
-              syncError: error instanceof Error ? error.message : String(error),
-            });
-          }
-        }
-      }
-    };
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 30_000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
+  const dragging = useRef(false);
+  const suppressButtonsUntil = useRef(0);
+  const { quota, error, refreshing, manualRefresh } = useWeeklyQuota();
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__ || getUpdateStrategy() !== "automatic") return;
@@ -72,29 +38,48 @@ function QuotaOverlay() {
     }
   };
 
+  const manuallyRefresh = async () => {
+    if (dragging.current || Date.now() < suppressButtonsUntil.current) return;
+    await manualRefresh();
+  };
+
+  const buttonsAreEnabled = () => !dragging.current && Date.now() >= suppressButtonsUntil.current;
+
   const startDragging = async () => {
-    if (!window.__TAURI_INTERNALS__) return;
+    if (!window.__TAURI_INTERNALS__ || dragging.current) return;
     const overlay = getCurrentWebviewWindow();
-    await invoke("begin_overlay_drag");
+    dragging.current = true;
+    const startPosition = await overlay.outerPosition().catch(() => null);
     try {
-      await overlay.startDragging();
+      await invoke("begin_overlay_drag");
+      try {
+        await overlay.startDragging();
+      } finally {
+        await invoke("end_overlay_drag");
+      }
     } finally {
-      await invoke("end_overlay_drag");
+      const endPosition = await overlay.outerPosition().catch(() => null);
+      const moved = startPosition && endPosition
+        ? Math.abs(endPosition.x - startPosition.x) > 2 || Math.abs(endPosition.y - startPosition.y) > 2
+        : true;
+      if (moved) suppressButtonsUntil.current = Date.now() + 350;
+      dragging.current = false;
     }
   };
 
   return (
     <main className="app-shell">
-      {quota ? (
-        <QuotaCapsule
-          quota={quota}
-          updateAvailable={updateAvailable}
-          onOpenSettings={() => void openSettings()}
-          onStartDragging={() => void startDragging()}
-        />
-      ) : (
-        <div className="loading-pill" />
-      )}
+      <QuotaCapsule
+        quota={quota}
+        error={error}
+        refreshing={refreshing}
+        updateAvailable={updateAvailable}
+        onManualRefresh={() => void manuallyRefresh()}
+        onOpenSettings={() => {
+          if (buttonsAreEnabled()) void openSettings();
+        }}
+        onStartDragging={() => void startDragging()}
+      />
     </main>
   );
 }

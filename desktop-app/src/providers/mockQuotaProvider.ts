@@ -7,8 +7,7 @@ class MockQuotaProvider implements QuotaProvider {
       windowDurationMins: 10_080,
       resetsAt: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60,
       resetCreditsAvailable: 3,
-      synced: true,
-      syncedAt: new Date().toISOString(),
+      syncedAt: Math.floor(Date.now() / 1000),
       source: "mock",
     };
   }

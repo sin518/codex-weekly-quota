@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, PhysicalPosition, State};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, WebviewWindow};
 
-const OVERLAY_WIDTH: i32 = 300;
+const OVERLAY_WIDTH: i32 = 360;
 const HEADER_OFFSET_Y: i32 = 4;
 const SNAP_DISTANCE_Y: i32 = 72;
 const EDGE_PADDING: i32 = 8;
@@ -39,6 +39,7 @@ struct TargetWindow {
 pub fn start(app: AppHandle, state: WindowTrackerState) {
     thread::spawn(move || {
         let mut has_tracked_codex = false;
+        let mut overlay_visible = None;
         loop {
             if let Some(overlay) = app.get_webview_window("quota-overlay") {
                 let (dragging, attached, offset_x) = state
@@ -60,17 +61,17 @@ pub fn start(app: AppHandle, state: WindowTrackerState) {
                             let y = target.y + HEADER_OFFSET_Y;
                             let _ = overlay.set_position(PhysicalPosition::new(x, y));
                         }
-                        let _ = overlay.show();
+                        set_overlay_visibility(&overlay, true, &mut overlay_visible);
                         has_tracked_codex = true;
                     }
                     Some(_) => {
                         if attached {
-                            let _ = overlay.hide();
+                            set_overlay_visibility(&overlay, false, &mut overlay_visible);
                         }
                     }
                     None if has_tracked_codex => {
                         if attached {
-                            let _ = overlay.hide();
+                            set_overlay_visibility(&overlay, false, &mut overlay_visible);
                         }
                     }
                     None => {
@@ -85,13 +86,30 @@ pub fn start(app: AppHandle, state: WindowTrackerState) {
                                 let _ = overlay.set_position(PhysicalPosition::new(x, y));
                             }
                         }
-                        let _ = overlay.show();
+                        set_overlay_visibility(&overlay, true, &mut overlay_visible);
                     }
                 }
             }
             thread::sleep(Duration::from_millis(500));
         }
     });
+}
+
+fn set_overlay_visibility(
+    overlay: &WebviewWindow,
+    visible: bool,
+    previous_visibility: &mut Option<bool>,
+) {
+    if visible {
+        let _ = overlay.show();
+    } else {
+        let _ = overlay.hide();
+    }
+
+    if *previous_visibility != Some(visible) {
+        let _ = overlay.emit("overlay-visibility-changed", visible);
+        *previous_visibility = Some(visible);
+    }
 }
 
 #[tauri::command]
