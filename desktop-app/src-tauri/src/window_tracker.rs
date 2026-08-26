@@ -100,16 +100,22 @@ fn set_overlay_visibility(
     visible: bool,
     previous_visibility: &mut Option<bool>,
 ) {
-    if visible {
-        let _ = overlay.show();
-    } else {
-        let _ = overlay.hide();
+    if should_apply_visibility(*previous_visibility, visible) {
+        if visible {
+            let _ = overlay.show();
+        } else {
+            let _ = overlay.hide();
+        }
     }
 
     if *previous_visibility != Some(visible) {
         let _ = overlay.emit("overlay-visibility-changed", visible);
         *previous_visibility = Some(visible);
     }
+}
+
+fn should_apply_visibility(previous_visibility: Option<bool>, visible: bool) -> bool {
+    previous_visibility != Some(visible)
 }
 
 #[tauri::command]
@@ -159,6 +165,21 @@ fn clamp_to_target(x: i32, target: TargetWindow) -> i32 {
     let min_x = target.x + EDGE_PADDING;
     let max_x = target.x + target.width - OVERLAY_WIDTH - EDGE_PADDING;
     x.clamp(min_x, max_x.max(min_x))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_apply_visibility;
+
+    #[test]
+    fn applies_visibility_only_when_the_state_changes() {
+        assert!(should_apply_visibility(None, true));
+        assert!(should_apply_visibility(None, false));
+        assert!(!should_apply_visibility(Some(true), true));
+        assert!(!should_apply_visibility(Some(false), false));
+        assert!(should_apply_visibility(Some(true), false));
+        assert!(should_apply_visibility(Some(false), true));
+    }
 }
 
 #[cfg(target_os = "macos")]

@@ -12,7 +12,7 @@
 
 ## 当前版本
 
-**v0.1.10** - 已支持同时显示 Codex 五小时与七天额度。
+**v0.1.11** - 已支持双额度窗口，并修复设置窗口点击失焦问题。
 
 ### 技术栈
 
@@ -192,8 +192,8 @@ npm run tauri build
 2. **提交并打标签**
    ```bash
    git add .
-   git commit -m "chore: bump version to 0.1.10"
-   git tag v0.1.10
+   git commit -m "chore: bump version to 0.1.11"
+   git tag v0.1.11
    git push origin main --tags
    ```
 
