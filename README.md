@@ -12,7 +12,7 @@
 
 ## 当前版本
 
-**v0.1.8** - 已实现完整的桌面应用和 Codex 插件功能。
+**v0.1.10** - 已支持同时显示 Codex 五小时与七天额度。
 
 ### 技术栈
 
@@ -192,8 +192,8 @@ npm run tauri build
 2. **提交并打标签**
    ```bash
    git add .
-   git commit -m "chore: bump version to 0.1.9"
-   git tag v0.1.9
+   git commit -m "chore: bump version to 0.1.10"
+   git tag v0.1.10
    git push origin main --tags
    ```
 
