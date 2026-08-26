@@ -55,7 +55,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_settings,
             close_settings,
-            quota::get_weekly_quota,
+            quota::get_codex_quota,
             window_tracker::begin_overlay_drag,
             window_tracker::end_overlay_drag
         ])

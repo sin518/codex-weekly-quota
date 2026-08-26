@@ -1,8 +1,8 @@
-import type { QuotaReadError, WeeklyQuota } from "../providers/types";
+import type { QuotaReadError, QuotaSnapshot } from "../providers/types";
 import { buildQuotaPresentation } from "./quotaPresentation";
 
 interface QuotaCapsuleProps {
-  quota: WeeklyQuota | null;
+  quota: QuotaSnapshot | null;
   error: QuotaReadError | null;
   refreshing: boolean;
   updateAvailable: boolean;
@@ -25,7 +25,7 @@ export function QuotaCapsule({
   return (
     <section
       className="quota-capsule"
-      aria-label="Codex 七天额度"
+      aria-label="Codex 五小时和七天额度"
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         const button = (event.target as HTMLElement).closest("button");
@@ -57,25 +57,32 @@ export function QuotaCapsule({
         aria-busy={presentation.loading || refreshing}
         aria-label={presentation.accessibleText}
       >
-        {quota && (
-          <div
-            className="progress-track"
-            data-tone={presentation.progressTone}
-            role="progressbar"
-            aria-label={`七天额度已使用 ${quota.usedPercent}%`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={quota.usedPercent}
-          >
-            <div className="progress-fill" style={{ width: `${quota.usedPercent}%` }} />
+        {presentation.windows.length > 0 ? (
+          <div className="quota-windows">
+            {presentation.windows.map((window) => (
+              <div className="quota-window" data-window={window.key} key={window.key} title={window.details}>
+                <span className="window-label">{window.label}</span>
+                {window.quota ? (
+                  <div
+                    className="progress-track"
+                    data-tone={window.progressTone}
+                    role="progressbar"
+                    aria-label={`${window.label}额度已使用 ${window.quota.usedPercent}%`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={window.quota.usedPercent}
+                  >
+                    <div className="progress-fill" style={{ width: `${window.quota.usedPercent}%` }} />
+                  </div>
+                ) : (
+                  <div className="progress-track" data-unavailable="true" aria-hidden="true" />
+                )}
+                <strong className="percentage">{window.valueText}</strong>
+              </div>
+            ))}
           </div>
-        )}
-        <strong className={quota ? "percentage" : "status-message"}>{presentation.primaryText}</strong>
-        {presentation.statusText && (
-          <>
-            <span className="separator" aria-hidden="true" />
-            <span className="period-copy">{presentation.statusText}</span>
-          </>
+        ) : (
+          <strong className="status-message">{presentation.messageText}</strong>
         )}
       </div>
       {presentation.indicatorTone && (

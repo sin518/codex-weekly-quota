@@ -8,14 +8,22 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+const FIVE_HOUR_WINDOW_MINS: u64 = 300;
 const WEEKLY_WINDOW_MINS: u64 = 10_080;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WeeklyQuota {
+pub struct QuotaWindow {
     used_percent: u8,
     window_duration_mins: u64,
     resets_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaSnapshot {
+    five_hour: Option<QuotaWindow>,
+    weekly: QuotaWindow,
     reset_credits_available: Option<u32>,
     synced_at: u64,
     source: &'static str,
@@ -38,7 +46,7 @@ impl QuotaReadError {
 }
 
 #[tauri::command]
-pub fn get_weekly_quota() -> Result<WeeklyQuota, QuotaReadError> {
+pub fn get_codex_quota() -> Result<QuotaSnapshot, QuotaReadError> {
     let mut child = start_app_server()?;
     let mut stdin = child.stdin.take().ok_or_else(|| {
         QuotaReadError::new(
@@ -59,8 +67,8 @@ pub fn get_weekly_quota() -> Result<WeeklyQuota, QuotaReadError> {
             "id": 0,
             "params": {
                 "clientInfo": {
-                    "name": "codex_weekly_quota",
-                    "title": "Codex Weekly Quota",
+                    "name": "codex_quota_overlay",
+                    "title": "Codex Quota Overlay",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             }
@@ -93,7 +101,7 @@ pub fn get_weekly_quota() -> Result<WeeklyQuota, QuotaReadError> {
     // make app-server exit before it flushes the rate-limit response in packaged builds.
     let response = receiver
         .recv_timeout(Duration::from_secs(12))
-        .map_err(|_| QuotaReadError::new("quota-read-timeout", "读取 Codex 七天额度超时"));
+        .map_err(|_| QuotaReadError::new("quota-read-timeout", "读取 Codex 额度超时"));
     drop(stdin);
     let _ = child.kill();
     let response = response?;
@@ -166,7 +174,7 @@ fn find_codex_binary() -> Option<PathBuf> {
     None
 }
 
-fn parse_rate_limits(result: &Value) -> Result<WeeklyQuota, QuotaReadError> {
+fn parse_rate_limits(result: &Value) -> Result<QuotaSnapshot, QuotaReadError> {
     let snapshot = match result.get("rateLimits") {
         Some(snapshot) if !snapshot.is_null() => snapshot,
         _ => result
@@ -180,6 +188,47 @@ fn parse_rate_limits(result: &Value) -> Result<WeeklyQuota, QuotaReadError> {
             })?,
     };
 
+    // The five-hour window is optional during rollout so existing weekly-only accounts keep
+    // working. The weekly window remains required because it is the overlay's baseline data.
+    let five_hour = parse_window(
+        snapshot,
+        FIVE_HOUR_WINDOW_MINS,
+        "五小时",
+        "five-hour-window-ambiguous",
+    )?;
+    let weekly = parse_window(
+        snapshot,
+        WEEKLY_WINDOW_MINS,
+        "七天",
+        "weekly-window-ambiguous",
+    )?
+    .ok_or_else(|| {
+        QuotaReadError::new(
+            "weekly-window-missing",
+            "Codex 未返回 10080 分钟额度窗口",
+        )
+    })?;
+
+    let reset_credits_available = result
+        .pointer("/rateLimitResetCredits/availableCount")
+        .and_then(Value::as_u64)
+        .and_then(|count| u32::try_from(count).ok());
+
+    Ok(QuotaSnapshot {
+        five_hour,
+        weekly,
+        reset_credits_available,
+        synced_at: unix_now(),
+        source: "codex-app-server",
+    })
+}
+
+fn parse_window(
+    snapshot: &Value,
+    duration_mins: u64,
+    label: &str,
+    ambiguous_code: &'static str,
+) -> Result<Option<QuotaWindow>, QuotaReadError> {
     let matching_windows = ["primary", "secondary"]
         .into_iter()
         .filter_map(|key| snapshot.get(key))
@@ -188,22 +237,17 @@ fn parse_rate_limits(result: &Value) -> Result<WeeklyQuota, QuotaReadError> {
             window
                 .get("windowDurationMins")
                 .and_then(Value::as_u64)
-                == Some(WEEKLY_WINDOW_MINS)
+                == Some(duration_mins)
         })
         .collect::<Vec<_>>();
 
     let selected = match matching_windows.as_slice() {
-        [] => {
-            return Err(QuotaReadError::new(
-                "weekly-window-missing",
-                "Codex 未返回 10080 分钟额度窗口",
-            ));
-        }
+        [] => return Ok(None),
         [selected] => *selected,
         _ => {
             return Err(QuotaReadError::new(
-                "weekly-window-ambiguous",
-                "Codex 返回了多个 10080 分钟额度窗口",
+                ambiguous_code,
+                format!("Codex 返回了多个 {duration_mins} 分钟额度窗口"),
             ));
         }
     };
@@ -215,25 +259,15 @@ fn parse_rate_limits(result: &Value) -> Result<WeeklyQuota, QuotaReadError> {
         .ok_or_else(|| {
             QuotaReadError::new(
                 "quota-data-invalid",
-                "七天额度窗口缺少 0 到 100 范围内的 usedPercent",
+                format!("{label}额度窗口缺少 0 到 100 范围内的 usedPercent"),
             )
         })?;
 
-    let resets_at = selected.get("resetsAt").and_then(Value::as_u64);
-
-    let reset_credits_available = result
-        .pointer("/rateLimitResetCredits/availableCount")
-        .and_then(Value::as_u64)
-        .and_then(|count| u32::try_from(count).ok());
-
-    Ok(WeeklyQuota {
+    Ok(Some(QuotaWindow {
         used_percent: used_percent as u8,
-        window_duration_mins: WEEKLY_WINDOW_MINS,
-        resets_at,
-        reset_credits_available,
-        synced_at: unix_now(),
-        source: "codex-app-server",
-    })
+        window_duration_mins: duration_mins,
+        resets_at: selected.get("resetsAt").and_then(Value::as_u64),
+    }))
 }
 
 fn unix_now() -> u64 {
@@ -247,23 +281,27 @@ fn unix_now() -> u64 {
 mod tests {
     use super::*;
 
-    fn weekly_window(used_percent: u64, resets_at: Option<u64>) -> Value {
+    fn window(used_percent: u64, duration_mins: u64, resets_at: Option<u64>) -> Value {
         json!({
             "usedPercent": used_percent,
-            "windowDurationMins": WEEKLY_WINDOW_MINS,
+            "windowDurationMins": duration_mins,
             "resetsAt": resets_at,
         })
     }
 
+    fn five_hour_window(used_percent: u64, resets_at: Option<u64>) -> Value {
+        window(used_percent, FIVE_HOUR_WINDOW_MINS, resets_at)
+    }
+
+    fn weekly_window(used_percent: u64, resets_at: Option<u64>) -> Value {
+        window(used_percent, WEEKLY_WINDOW_MINS, resets_at)
+    }
+
     #[test]
-    fn selects_the_single_top_level_weekly_window() {
+    fn selects_both_top_level_windows() {
         let result = json!({
             "rateLimits": {
-                "primary": {
-                    "usedPercent": 10,
-                    "windowDurationMins": 300,
-                    "resetsAt": 1_000,
-                },
+                "primary": five_hour_window(10, Some(1_000)),
                 "secondary": weekly_window(68, Some(2_000)),
             },
             "rateLimitsByLimitId": {
@@ -276,10 +314,11 @@ mod tests {
             }
         });
 
-        let quota = parse_rate_limits(&result).expect("weekly quota should parse");
+        let quota = parse_rate_limits(&result).expect("quota windows should parse");
 
-        assert_eq!(quota.used_percent, 68);
-        assert_eq!(quota.resets_at, Some(2_000));
+        assert_eq!(quota.five_hour.expect("five-hour window").used_percent, 10);
+        assert_eq!(quota.weekly.used_percent, 68);
+        assert_eq!(quota.weekly.resets_at, Some(2_000));
         assert_eq!(quota.reset_credits_available, Some(0));
     }
 
@@ -288,6 +327,7 @@ mod tests {
         let result = json!({
             "rateLimitsByLimitId": {
                 "codex": {
+                    "primary": five_hour_window(17, Some(1_000)),
                     "secondary": weekly_window(42, Some(2_000)),
                 },
                 "other": {
@@ -298,18 +338,15 @@ mod tests {
 
         let quota = parse_rate_limits(&result).expect("fallback weekly quota should parse");
 
-        assert_eq!(quota.used_percent, 42);
+        assert_eq!(quota.five_hour.expect("five-hour window").used_percent, 17);
+        assert_eq!(quota.weekly.used_percent, 42);
     }
 
     #[test]
     fn does_not_fall_back_when_top_level_exists_without_a_weekly_window() {
         let result = json!({
             "rateLimits": {
-                "primary": {
-                    "usedPercent": 10,
-                    "windowDurationMins": 300,
-                    "resetsAt": 1_000,
-                }
+                "primary": five_hour_window(10, Some(1_000))
             },
             "rateLimitsByLimitId": {
                 "codex": {
@@ -338,6 +375,20 @@ mod tests {
     }
 
     #[test]
+    fn rejects_ambiguous_five_hour_windows() {
+        let result = json!({
+            "rateLimits": {
+                "primary": five_hour_window(10, Some(1_000)),
+                "secondary": five_hour_window(20, Some(2_000)),
+            }
+        });
+
+        let error = parse_rate_limits(&result).expect_err("ambiguous data must fail");
+
+        assert_eq!(error.code, "five-hour-window-ambiguous");
+    }
+
+    #[test]
     fn rejects_an_out_of_range_used_percent() {
         let result = json!({
             "rateLimits": {
@@ -351,6 +402,34 @@ mod tests {
     }
 
     #[test]
+    fn rejects_an_invalid_five_hour_window() {
+        let result = json!({
+            "rateLimits": {
+                "primary": five_hour_window(125, Some(1_000)),
+                "secondary": weekly_window(68, Some(2_000)),
+            }
+        });
+
+        let error = parse_rate_limits(&result).expect_err("invalid percentage must fail");
+
+        assert_eq!(error.code, "quota-data-invalid");
+    }
+
+    #[test]
+    fn keeps_weekly_usage_while_five_hour_window_is_rolling_out() {
+        let result = json!({
+            "rateLimits": {
+                "secondary": weekly_window(68, Some(2_000)),
+            }
+        });
+
+        let quota = parse_rate_limits(&result).expect("weekly-only data remains supported");
+
+        assert!(quota.five_hour.is_none());
+        assert_eq!(quota.weekly.used_percent, 68);
+    }
+
+    #[test]
     fn keeps_usage_when_reset_time_is_missing() {
         let result = json!({
             "rateLimits": {
@@ -360,7 +439,7 @@ mod tests {
 
         let quota = parse_rate_limits(&result).expect("missing reset time is partial data");
 
-        assert_eq!(quota.used_percent, 68);
-        assert_eq!(quota.resets_at, None);
+        assert_eq!(quota.weekly.used_percent, 68);
+        assert_eq!(quota.weekly.resets_at, None);
     }
 }

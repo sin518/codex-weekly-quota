@@ -5,7 +5,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import { QuotaCapsule } from "./components/QuotaCapsule";
 import { SettingsScreen } from "./components/SettingsScreen";
-import { useWeeklyQuota } from "./hooks/useWeeklyQuota";
+import { useCodexQuota } from "./hooks/useCodexQuota";
 import { getUpdateStrategy } from "./updates/preferences";
 
 function App() {
@@ -20,7 +20,7 @@ function QuotaOverlay() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const dragging = useRef(false);
   const suppressButtonsUntil = useRef(0);
-  const { quota, error, refreshing, manualRefresh } = useWeeklyQuota();
+  const { quota, error, refreshing, manualRefresh } = useCodexQuota();
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__ || getUpdateStrategy() !== "automatic") return;

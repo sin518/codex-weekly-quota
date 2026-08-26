@@ -1,12 +1,12 @@
 # Codex 周额度
 
-一个面向 macOS 和 Windows 的 Codex 周额度伴随悬浮条，通过玻璃胶囊实时显示额度使用情况，支持窗口吸附和自动更新。
+一个面向 macOS 和 Windows 的 Codex 额度伴随悬浮条，通过玻璃胶囊实时显示五小时与七天额度使用情况，支持窗口吸附和自动更新。
 
 ## 功能特性
 
 - **超窄玻璃胶囊**：260 × 36 px 极简设计，支持系统浅色与深色模式自适应
 - **智能窗口吸附**：自动吸附到 Codex 窗口上方，跟随移动，最小化时自动隐藏
-- **实时额度监控**：通过官方 Codex App Server 读取真实额度数据，无需额外登录
+- **双窗口额度监控**：通过官方 Codex App Server 同时读取五小时与七天额度，无需额外登录
 - **应用内更新**：支持自动检查更新，使用签名验证确保安全性
 - **跨平台支持**：原生支持 macOS（Intel & Apple Silicon）和 Windows
 
@@ -78,7 +78,7 @@
 4. **验证运行**
    - 启动后会自动打开透明置顶的额度条窗口
    - 如果 Codex 应用正在运行，额度条会自动吸附到窗口上方
-   - 显示真实周额度数据（需要本地已登录 Codex）
+   - 显示真实五小时与七天额度数据（需要本地已登录 Codex）
 
 ### 构建安装包
 
@@ -96,28 +96,32 @@ npm run tauri build
 
 1. 完成 JSON-RPC 初始化握手
 2. 调用 `account/rateLimits/read` 接口
-3. 从返回的多个额度窗口中选择时长最长的作为周额度
+3. 按 `windowDurationMins` 分别选择 300 分钟与 10080 分钟额度窗口
 4. 解析并显示：
    - 使用百分比
-   - 窗口时长（如 7 天）
+   - 窗口时长（5 小时与 7 天）
    - 下一次重置时间
    - 可用重置额度次数（如果服务端返回）
 
 **数据来源示例响应**：
 ```json
 {
-  "rateLimits": [
-    {
-      "windowSeconds": 604800,
-      "used": 42,
-      "limit": 100,
-      "nextResetAt": "2026-07-20T00:00:00Z"
+  "rateLimits": {
+    "primary": {
+      "usedPercent": 36,
+      "windowDurationMins": 300,
+      "resetsAt": 1784988000
+    },
+    "secondary": {
+      "usedPercent": 68,
+      "windowDurationMins": 10080,
+      "resetsAt": 1785420000
     }
-  ]
+  }
 }
 ```
 
-应用选择 `windowSeconds` 最大的窗口作为周额度显示。
+应用严格按窗口时长识别额度，不依赖 `primary` / `secondary` 的顺序。五小时窗口渐进上线期间若暂缺，七天额度仍可继续显示。
 
 ### 窗口吸附逻辑
 

@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { QuotaProvider, WeeklyQuota } from "./types";
+import type { QuotaProvider, QuotaSnapshot } from "./types";
 
 class CodexQuotaProvider implements QuotaProvider {
-  async getWeeklyQuota(): Promise<WeeklyQuota> {
-    return invoke<WeeklyQuota>("get_weekly_quota");
+  async getQuota(): Promise<QuotaSnapshot> {
+    return invoke<QuotaSnapshot>("get_codex_quota");
   }
 }
 

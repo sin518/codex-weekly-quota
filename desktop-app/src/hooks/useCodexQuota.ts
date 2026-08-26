@@ -4,26 +4,26 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { codexQuotaProvider } from "../providers/codexQuotaProvider";
 import { mockQuotaProvider } from "../providers/mockQuotaProvider";
 import { isSemanticQuotaError, normalizeQuotaError } from "../providers/quotaErrors";
-import type { QuotaReadError, WeeklyQuota } from "../providers/types";
+import type { QuotaReadError, QuotaSnapshot } from "../providers/types";
 
 const AUTO_REFRESH_MS = 5 * 60_000;
 const RETRY_DELAYS_MS = [30_000, 60_000, 5 * 60_000] as const;
 
-interface WeeklyQuotaController {
-  quota: WeeklyQuota | null;
+interface CodexQuotaController {
+  quota: QuotaSnapshot | null;
   error: QuotaReadError | null;
   refreshing: boolean;
   manualRefresh: () => Promise<void>;
 }
 
-export function useWeeklyQuota(): WeeklyQuotaController {
-  const [quota, setQuota] = useState<WeeklyQuota | null>(null);
+export function useCodexQuota(): CodexQuotaController {
+  const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
   const [error, setError] = useState<QuotaReadError | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [visible, setVisible] = useState(true);
   const [retryDelay, setRetryDelay] = useState<number | null>(null);
   const mounted = useRef(true);
-  const quotaRef = useRef<WeeklyQuota | null>(null);
+  const quotaRef = useRef<QuotaSnapshot | null>(null);
   const inFlight = useRef<Promise<void> | null>(null);
   const retryIndex = useRef(0);
   const previousVisibility = useRef(true);
@@ -36,7 +36,7 @@ export function useWeeklyQuota(): WeeklyQuotaController {
     const request = (async () => {
       try {
         const provider = window.__TAURI_INTERNALS__ ? codexQuotaProvider : mockQuotaProvider;
-        const nextQuota = await provider.getWeeklyQuota();
+        const nextQuota = await provider.getQuota();
         quotaRef.current = nextQuota;
         retryIndex.current = 0;
         if (mounted.current) {
@@ -45,7 +45,7 @@ export function useWeeklyQuota(): WeeklyQuotaController {
           setRetryDelay(null);
         }
       } catch (rawError) {
-        console.error("读取 Codex 七天额度失败", rawError);
+        console.error("读取 Codex 额度失败", rawError);
         const nextError = normalizeQuotaError(rawError);
         if (mounted.current) {
           setError(nextError);
@@ -131,8 +131,8 @@ export function useWeeklyQuota(): WeeklyQuotaController {
   }, [refresh, retryDelay, visible]);
 
   useEffect(() => {
-    const resetsAt = quota?.resetsAt;
-    if (!visible || resetsAt === null || resetsAt === undefined) return;
+    const resetsAt = getNextResetAt(quota);
+    if (!visible || resetsAt === null) return;
 
     const triggerBoundaryRefresh = async () => {
       if (handledReset.current === resetsAt) return;
@@ -140,13 +140,8 @@ export function useWeeklyQuota(): WeeklyQuotaController {
       const joinedExistingRequest = inFlight.current !== null;
       await refresh();
 
-      const latestReset = quotaRef.current?.resetsAt;
-      if (
-        joinedExistingRequest
-        && latestReset !== null
-        && latestReset !== undefined
-        && latestReset * 1000 <= Date.now()
-      ) {
+      const latestReset = getNextResetAt(quotaRef.current);
+      if (joinedExistingRequest && latestReset !== null && latestReset * 1000 <= Date.now()) {
         await refresh();
       }
     };
@@ -163,4 +158,11 @@ export function useWeeklyQuota(): WeeklyQuotaController {
   }, [quota, refresh, visible]);
 
   return { quota, error, refreshing, manualRefresh };
+}
+
+function getNextResetAt(quota: QuotaSnapshot | null): number | null {
+  if (!quota) return null;
+  const resetTimes = [quota.fiveHour?.resetsAt, quota.weekly.resetsAt]
+    .filter((value): value is number => value !== null && value !== undefined);
+  return resetTimes.length > 0 ? Math.min(...resetTimes) : null;
 }

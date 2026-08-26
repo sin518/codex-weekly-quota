@@ -1,11 +1,18 @@
-import type { QuotaProvider, WeeklyQuota } from "./types";
+import type { QuotaProvider, QuotaSnapshot } from "./types";
 
 class MockQuotaProvider implements QuotaProvider {
-  async getWeeklyQuota(): Promise<WeeklyQuota> {
+  async getQuota(): Promise<QuotaSnapshot> {
     return {
-      usedPercent: 68,
-      windowDurationMins: 10_080,
-      resetsAt: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60,
+      fiveHour: {
+        usedPercent: 36,
+        windowDurationMins: 300,
+        resetsAt: Math.floor(Date.now() / 1000) + 2 * 60 * 60,
+      },
+      weekly: {
+        usedPercent: 68,
+        windowDurationMins: 10_080,
+        resetsAt: Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60,
+      },
       resetCreditsAvailable: 3,
       syncedAt: Math.floor(Date.now() / 1000),
       source: "mock",

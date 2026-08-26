@@ -1,6 +1,6 @@
 ---
 name: codex-weekly-quota
-description: Start, stop, inspect, or diagnose the local Codex weekly quota desktop overlay. Use when the user asks about the quota capsule, its mock data, synchronization state, or local desktop companion app.
+description: Start, stop, inspect, or diagnose the local Codex five-hour and weekly quota desktop overlay. Use when the user asks about the quota capsule, its mock data, synchronization state, or local desktop companion app.
 ---
 
 # Codex Weekly Quota
@@ -9,7 +9,7 @@ This plugin controls a local companion overlay. It does not inject UI into the n
 
 ## Workflow
 
-1. Explain that the native build reads rate limits through the official local Codex App Server, while browser-only preview uses `MockQuotaProvider`.
+1. Explain that the native build reads the five-hour and seven-day rate-limit windows through the official local Codex App Server, while browser-only preview uses `MockQuotaProvider`.
 2. Before running a command, tell the user whether it starts a local process or installs dependencies.
 3. From the plugin root, use `scripts/start-overlay.sh` on macOS or `scripts/start-overlay.ps1` on Windows.
 4. If startup fails, check Node.js, npm dependencies, Rust, and Tauri prerequisites in that order.
