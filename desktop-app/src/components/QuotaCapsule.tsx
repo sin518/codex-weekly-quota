@@ -1,8 +1,11 @@
-import type { QuotaReadError, QuotaSnapshot } from "../providers/types";
+import type { DeepSeekBalanceSnapshot, QuotaReadError, QuotaSnapshot, QuotaSource } from "../providers/types";
 import { buildQuotaPresentation } from "./quotaPresentation";
 
 interface QuotaCapsuleProps {
+  source: QuotaSource;
   quota: QuotaSnapshot | null;
+  balance: DeepSeekBalanceSnapshot | null;
+  topUp: number;
   error: QuotaReadError | null;
   refreshing: boolean;
   updateAvailable: boolean;
@@ -12,7 +15,10 @@ interface QuotaCapsuleProps {
 }
 
 export function QuotaCapsule({
+  source,
   quota,
+  balance,
+  topUp,
   error,
   refreshing,
   updateAvailable,
@@ -20,12 +26,13 @@ export function QuotaCapsule({
   onOpenSettings,
   onStartDragging,
 }: QuotaCapsuleProps) {
-  const presentation = buildQuotaPresentation(quota, error, refreshing);
+  const presentation = buildQuotaPresentation(source, quota, balance, topUp, error, refreshing);
+  const title = source === "deepseek" ? "DeepSeek 账户余额" : "Codex 额度";
 
   return (
     <section
       className="quota-capsule"
-      aria-label="Codex 五小时和七天额度"
+      aria-label={title}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         const button = (event.target as HTMLElement).closest("button");
@@ -67,7 +74,7 @@ export function QuotaCapsule({
                     className="progress-track"
                     data-tone={window.progressTone}
                     role="progressbar"
-                    aria-label={`${window.label}额度已使用 ${window.quota.usedPercent}%`}
+                    aria-label={`${window.label} ${window.valueText}`}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={window.quota.usedPercent}

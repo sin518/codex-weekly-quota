@@ -16,6 +16,28 @@ export interface QuotaProvider {
   getQuota(): Promise<QuotaSnapshot>;
 }
 
+export type QuotaSource = "codex" | "deepseek";
+
+export interface DeepSeekBalanceInfo {
+  currency: string;
+  totalBalance: string;
+  grantedBalance: string;
+  toppedUpBalance: string;
+}
+
+export interface DeepSeekBalanceSnapshot {
+  isAvailable: boolean;
+  balances: DeepSeekBalanceInfo[];
+  syncedAt: number;
+  source: "deepseek-api" | "mock";
+}
+
+export interface DeepSeekConfigStatus {
+  configured: boolean;
+  baseUrl: string | null;
+  rememberApiKey: boolean;
+}
+
 export type QuotaErrorCode =
   | "codex-cli-missing"
   | "app-server-unavailable"
@@ -27,6 +49,15 @@ export type QuotaErrorCode =
   | "weekly-window-ambiguous"
   | "five-hour-window-ambiguous"
   | "quota-data-invalid"
+  | "deepseek-not-configured"
+  | "deepseek-api-key-missing"
+  | "deepseek-invalid-url"
+  | "deepseek-state-error"
+  | "deepseek-auth-error"
+  | "deepseek-http-error"
+  | "deepseek-response-error"
+  | "deepseek-network-error"
+  | "deepseek-balance-missing"
   | "unknown";
 
 export interface QuotaReadError {

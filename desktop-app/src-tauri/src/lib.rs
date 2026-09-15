@@ -1,3 +1,4 @@
+mod deepseek;
 mod quota;
 mod window_tracker;
 
@@ -44,6 +45,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(tracker_state)
+        .manage(deepseek::DeepSeekConfigState::default())
         .setup(|app| {
             let state = app
                 .state::<window_tracker::WindowTrackerState>()
@@ -56,6 +58,10 @@ pub fn run() {
             open_settings,
             close_settings,
             quota::get_codex_quota,
+            deepseek::save_deepseek_config,
+            deepseek::get_deepseek_balance,
+            deepseek::get_deepseek_config_status,
+            deepseek::clear_deepseek_config,
             window_tracker::begin_overlay_drag,
             window_tracker::end_overlay_drag
         ])

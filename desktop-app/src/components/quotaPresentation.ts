@@ -1,11 +1,17 @@
 import { getUnavailableLabel } from "../providers/quotaErrors";
-import type { QuotaReadError, QuotaSnapshot, QuotaWindow } from "../providers/types";
+import type {
+  DeepSeekBalanceSnapshot,
+  QuotaReadError,
+  QuotaSnapshot,
+  QuotaSource,
+  QuotaWindow,
+} from "../providers/types";
 
 export type IndicatorTone = "fresh" | "warning" | "error" | "demo";
 export type ProgressTone = "normal" | "warning" | "danger";
 
 export interface QuotaWindowPresentation {
-  key: "five-hour" | "weekly";
+  key: string;
   label: string;
   quota: QuotaWindow | null;
   valueText: string;
@@ -24,141 +30,88 @@ export interface QuotaPresentation {
 }
 
 export function buildQuotaPresentation(
+  source: QuotaSource,
   quota: QuotaSnapshot | null,
+  balance: DeepSeekBalanceSnapshot | null,
+  topUp: number,
   error: QuotaReadError | null,
   refreshing: boolean,
   now = Date.now(),
 ): QuotaPresentation {
-  if (!quota && !error) {
-    return {
-      loading: true,
-      messageText: "正在读取额度…",
-      windows: [],
-      details: "正在读取 Codex 五小时和七天额度",
-      accessibleText: "正在读取 Codex 五小时和七天额度",
-      indicatorTone: null,
-      indicatorLabel: "",
-    };
+  if (source === "deepseek") {
+    return buildDeepSeekPresentation(balance, topUp, error, refreshing);
   }
+  return buildCodexPresentation(quota, error, refreshing, now);
+}
 
+function buildCodexPresentation(
+  quota: QuotaSnapshot | null,
+  error: QuotaReadError | null,
+  _refreshing: boolean,
+  now: number,
+): QuotaPresentation {
+  if (!quota && !error) {
+    return { loading: true, messageText: "正在读取额度…", windows: [], details: "正在读取 Codex 额度", accessibleText: "正在读取 Codex 额度", indicatorTone: null, indicatorLabel: "" };
+  }
   if (!quota && error) {
     const label = getUnavailableLabel(error);
-    return {
-      loading: false,
-      messageText: label,
-      windows: [],
-      details: `${label}\n原因：${error.userMessage}`,
-      accessibleText: `${label}，原因：${error.userMessage}`,
-      indicatorTone: "error",
-      indicatorLabel: label,
-    };
+    return { loading: false, messageText: label, windows: [], details: `${label}\n原因：${error.userMessage}`, accessibleText: `${label}，原因：${error.userMessage}`, indicatorTone: "error", indicatorLabel: label };
   }
-
-  const currentQuota = quota as QuotaSnapshot;
-  const isDemo = currentQuota.source === "mock";
+  const current = quota as QuotaSnapshot;
   const windows = [
-    buildWindowPresentation("five-hour", "5小时", currentQuota.fiveHour, now),
-    buildWindowPresentation("weekly", "7天", currentQuota.weekly, now),
+    buildCodexWindow("five-hour", "5小时", current.fiveHour, now),
+    buildCodexWindow("weekly", "7天", current.weekly, now),
   ];
-  const availableWindows = windows.filter(
-    (window): window is QuotaWindowPresentation & { quota: QuotaWindow } => window.quota !== null,
-  );
-  const hasExpiredWindow = availableWindows.some(
-    (window) => window.quota.resetsAt !== null && window.quota.resetsAt * 1000 <= now,
-  );
-  const hasUnknownReset = availableWindows.some((window) => window.quota.resetsAt === null);
-
-  let indicatorTone: IndicatorTone = "fresh";
-  let indicatorLabel = "五小时和七天额度已同步";
-  if (isDemo) {
-    indicatorTone = "demo";
-    indicatorLabel = "演示数据";
-  } else if (hasExpiredWindow) {
-    indicatorTone = "warning";
-    indicatorLabel = refreshing ? "额度周期已结束，正在更新" : "正在显示上一周期数据";
-  } else if (error) {
-    indicatorTone = "warning";
-    indicatorLabel = "额度更新失败，正在显示上次数据";
-  } else if (refreshing) {
-    indicatorTone = "warning";
-    indicatorLabel = "正在刷新额度";
-  } else if (currentQuota.fiveHour === null) {
-    indicatorTone = "warning";
-    indicatorLabel = "Codex 尚未返回五小时额度";
-  } else if (hasUnknownReset) {
-    indicatorTone = "warning";
-    indicatorLabel = "Codex 未返回完整的重置时间";
-  }
-
-  const detailLines = windows.map((window) => window.details);
-  if (isDemo) detailLines.unshift("演示数据：此数据仅用于界面预览");
-  if (currentQuota.resetCreditsAvailable !== null) {
-    detailLines.push(`可重置：${currentQuota.resetCreditsAvailable} 次`);
-  }
-  detailLines.push(`最后同步：${formatFullLocalTime(currentQuota.syncedAt * 1000)}`);
-  if (!isDemo && error) detailLines.push(`更新状态：${error.userMessage}`);
-  else if (!isDemo && refreshing) detailLines.push("更新状态：正在刷新");
-
-  return {
-    loading: false,
-    messageText: null,
-    windows,
-    details: detailLines.join("\n"),
-    accessibleText: detailLines.join("，"),
-    indicatorTone,
-    indicatorLabel,
-  };
+  return { loading: false, messageText: null, windows, details: windows.map(w => w.details).join("\n"), accessibleText: windows.map(w => w.details).join("，"), indicatorTone: "fresh", indicatorLabel: "Codex 额度已同步" };
 }
 
-function buildWindowPresentation(
-  key: QuotaWindowPresentation["key"],
-  label: string,
-  quota: QuotaWindow | null,
-  now: number,
-): QuotaWindowPresentation {
-  if (!quota) {
-    return {
-      key,
-      label,
-      quota: null,
-      valueText: "--",
-      details: `${label}额度：Codex 尚未返回`,
-      progressTone: "normal",
-    };
+function buildCodexWindow(key: QuotaWindowPresentation["key"], label: string, quota: QuotaWindow | null, _now: number): QuotaWindowPresentation {
+  if (!quota) return { key, label, quota: null, valueText: "--", details: `${label}：暂无`, progressTone: "normal" };
+  const item = quota as QuotaWindow;
+  const value = `${item.usedPercent}%`;
+  return { key, label, quota: item, valueText: value, details: `${label}额度已使用 ${value}`, progressTone: getProgressTone(item.usedPercent) };
+}
+
+function buildDeepSeekPresentation(
+  balance: DeepSeekBalanceSnapshot | null,
+  topUp: number,
+  error: QuotaReadError | null,
+  _refreshing: boolean,
+): QuotaPresentation {
+  if (!balance && !error) {
+    return { loading: true, messageText: "正在读取余额…", windows: [], details: "正在读取 DeepSeek 余额", accessibleText: "正在读取 DeepSeek 余额", indicatorTone: null, indicatorLabel: "" };
+  }
+  if (!balance && error) {
+    const label = getUnavailableLabel(error);
+    return { loading: false, messageText: label, windows: [], details: `${label}\n原因：${error.userMessage}`, accessibleText: `${label}，原因：${error.userMessage}`, indicatorTone: "error", indicatorLabel: label };
+  }
+  if (topUp <= 0) {
+    return { loading: false, messageText: "请在设置中填写充值总额", windows: [], details: "请在设置中填写 DeepSeek 充值总额", accessibleText: "请在设置中填写 DeepSeek 充值总额", indicatorTone: "warning", indicatorLabel: "缺少充值总额" };
   }
 
-  const isExpired = quota.resetsAt !== null && quota.resetsAt * 1000 <= now;
-  const detailLines = [`${label}额度已使用：${quota.usedPercent}%`];
-  const fullPeriod = formatFullPeriod(quota);
-  detailLines.push(fullPeriod ? `额度周期：${fullPeriod}` : "额度周期：未知");
-  if (isExpired) detailLines.push("状态：上一周期数据");
+  const current = balance as DeepSeekBalanceSnapshot;
+  const primary = current.balances[0];
+  const currentBalance = primary ? Number(primary.totalBalance) || 0 : 0;
+  const spend = Math.max(0, topUp - currentBalance);
+  const balancePercent = topUp > 0 ? Math.max(0, Math.min(100, (currentBalance / topUp) * 100)) : 0;
+  const spendPercent = topUp > 0 ? Math.max(0, Math.min(100, (spend / topUp) * 100)) : 0;
 
-  return {
-    key,
-    label,
-    quota,
-    valueText: `${quota.usedPercent}%`,
-    details: detailLines.join("\n"),
-    progressTone: getProgressTone(quota.usedPercent),
-  };
+  const windows: QuotaWindowPresentation[] = [
+    { key: "balance", label: "余额", quota: { usedPercent: Math.round(balancePercent), windowDurationMins: 1, resetsAt: null }, valueText: `${Math.round(balancePercent)}%`, details: `DeepSeek 余额：${formatAmount(primary?.currency, currentBalance)}`, progressTone: getProgressTone(balancePercent) },
+    { key: "spend", label: "消费", quota: { usedPercent: Math.round(spendPercent), windowDurationMins: 1, resetsAt: null }, valueText: `${Math.round(spendPercent)}%`, details: `累计消费：${formatAmount(primary?.currency, spend)}`, progressTone: getProgressTone(spendPercent) },
+  ];
+
+  const details = windows.map((item) => item.details).join("\n");
+  return { loading: false, messageText: null, windows, details, accessibleText: details.replace(/\n/g, "，"), indicatorTone: current.isAvailable ? "fresh" : "warning", indicatorLabel: current.isAvailable ? "DeepSeek 余额已同步" : "DeepSeek 余额不足" };
 }
 
-function formatFullPeriod(quota: QuotaWindow): string | null {
-  if (quota.resetsAt === null) return null;
-  const end = quota.resetsAt * 1000;
-  const start = end - quota.windowDurationMins * 60_000;
-  return `${formatFullLocalTime(start)} → ${formatFullLocalTime(end)}`;
-}
-
-function formatFullLocalTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${hours}:${minutes}`;
+function formatAmount(currency: string | undefined, amount: number): string {
+  const symbol = currency === "CNY" ? "¥" : currency === "USD" ? "$" : currency ? `${currency} ` : "";
+  return `${symbol}${amount.toFixed(2)}`;
 }
 
 function getProgressTone(usedPercent: number): ProgressTone {
-  if (usedPercent === 100) return "danger";
+  if (usedPercent >= 100) return "danger";
   if (usedPercent >= 80) return "warning";
   return "normal";
 }

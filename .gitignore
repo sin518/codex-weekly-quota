@@ -5,3 +5,5 @@
 # Local desktop installers (keep the folder, ignore generated packages)
 releases/*
 !releases/.gitkeep
+
+.codex-history/

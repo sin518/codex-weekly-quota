@@ -20,7 +20,7 @@ function QuotaOverlay() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const dragging = useRef(false);
   const suppressButtonsUntil = useRef(0);
-  const { quota, error, refreshing, manualRefresh } = useCodexQuota();
+  const { source, quota, balance, topUp, error, refreshing, manualRefresh } = useCodexQuota();
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__ || getUpdateStrategy() !== "automatic") return;
@@ -70,7 +70,10 @@ function QuotaOverlay() {
   return (
     <main className="app-shell">
       <QuotaCapsule
+        source={source}
         quota={quota}
+        balance={balance}
+        topUp={topUp}
         error={error}
         refreshing={refreshing}
         updateAvailable={updateAvailable}

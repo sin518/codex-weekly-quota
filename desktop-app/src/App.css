@@ -31,16 +31,30 @@ body,
 }
 
 .quota-capsule {
+  position: relative;
+  isolation: isolate;
   width: 346px;
   height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(235, 241, 250, 0.62));
+  background: transparent;
   box-shadow:
     0 10px 28px rgba(26, 35, 52, 0.17),
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.quota-capsule::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(235, 241, 250, 0.62));
+  clip-path: inset(0 round 999px);
   backdrop-filter: blur(22px) saturate(155%);
   -webkit-backdrop-filter: blur(22px) saturate(155%);
+  pointer-events: none;
 }
 
 .quota-capsule {
@@ -476,10 +490,13 @@ body,
 
   .quota-capsule {
     border-color: rgba(255, 255, 255, 0.15);
-    background: linear-gradient(135deg, rgba(48, 55, 68, 0.86), rgba(22, 27, 36, 0.76));
     box-shadow:
       0 12px 32px rgba(0, 0, 0, 0.38),
       inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .quota-capsule::before {
+    background: linear-gradient(135deg, rgba(48, 55, 68, 0.86), rgba(22, 27, 36, 0.76));
   }
 
   .sparkle {
@@ -544,5 +561,99 @@ body,
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+
+.deepseek-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(24, 32, 45, 0.08);
+}
+
+.field-label {
+  color: rgba(24, 32, 45, 0.62);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.credential-input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(99, 124, 244, 0.24);
+  border-radius: 9px;
+  color: #18202d;
+  background: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.credential-input:focus {
+  border-color: #637cf4;
+  box-shadow: 0 0 0 2px rgba(99, 124, 244, 0.16);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: rgba(24, 32, 45, 0.66);
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  margin-top: 1px;
+  accent-color: #637cf4;
+}
+
+.ghost-button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(99, 124, 244, 0.28);
+  border-radius: 999px;
+  color: #5369d5;
+  background: rgba(255, 255, 255, 0.5);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ghost-button:hover {
+  background: rgba(99, 124, 244, 0.08);
+}
+
+.deepseek-note {
+  margin: 0;
+  color: rgba(24, 32, 45, 0.56);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.deepseek-status {
+  margin: 0;
+  color: rgba(24, 32, 45, 0.7);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (prefers-color-scheme: dark) {
+  .credential-input {
+    color: #f5f7fb;
+    border-color: rgba(99, 124, 244, 0.36);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .field-label,
+  .checkbox-row,
+  .deepseek-status {
+    color: rgba(245, 247, 251, 0.72);
+  }
+  .deepseek-note {
+    color: rgba(245, 247, 251, 0.5);
   }
 }
