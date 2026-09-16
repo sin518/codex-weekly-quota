@@ -62,4 +62,6 @@ jobs:
               --title "Codex Weekly Quota $VERSION" \
               --notes "Download the installer for macOS. The in-app updater uses the signed latest.json manifest from this release."
           fi
-          find desktop-app/src-tauri/target/release/bundle -type f \( -name "*.dmg" -o -name "*.tar.gz" -o -name "*.sig" -o -name "*.xml" \) -print0 | xargs -0 gh release upload "$VERSION" --clobber
+          find desktop-app/src-tauri/target/aarch64-apple-darwin/release/bundle \
+               desktop-app/src-tauri/target/x86_64-apple-darwin/release/bundle \
+               -type f \( -name "*.dmg" -o -name "*.tar.gz" -o -name "*.sig" -o -name "*.xml" \) -print0 | xargs -0 gh release upload "$VERSION" --clobber
