@@ -49,19 +49,39 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build -- --target x86_64-apple-darwin
 
-      - name: Create or update GitHub release
+      - name: Delete existing release for this tag
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-          RELEASE_EXISTS=$(gh release view "$VERSION" >/dev/null 2>&1 && echo yes || echo no)
-          if [ "$RELEASE_EXISTS" = "no" ]; then
-            gh release create "$VERSION" \
-              --title "Codex Weekly Quota $VERSION" \
-              --notes "Download the installer for macOS. The in-app updater uses the signed latest.json manifest from this release."
-          fi
-          find desktop-app/src-tauri/target/aarch64-apple-darwin/release/bundle \
-               desktop-app/src-tauri/target/x86_64-apple-darwin/release/bundle \
-               -type f \( -name "*.dmg" -o -name "*.tar.gz" -o -name "*.sig" -o -name "*.xml" \) -print0 | xargs -0 gh release upload "$VERSION" --clobber
+          set +e
+          gh release delete "$VERSION" --yes --cleanup-tag >/dev/null 2>&1
+          exit 0
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VERSION" \
+            --title "Codex Weekly Quota $VERSION" \
+            --notes "Download the installer for macOS. The in-app updater uses the signed latest.json manifest from this release."
+
+      - name: Upload macOS artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          for dir in \
+            desktop-app/src-tauri/target/aarch64-apple-darwin/release/bundle \
+            desktop-app/src-tauri/target/x86_64-apple-darwin/release/bundle
+          do
+            find "$dir" -type f \( -name "*.dmg" -o -name "*.tar.gz" -o -name "*.sig" -o -name "*.xml" \) -print0 |
+              while IFS= read -r -d '' file; do
+                echo "Uploading: $file"
+                gh release upload "$VERSION" "$file" --clobber
+              done
+          done
