@@ -7,19 +7,10 @@ on:
       - "v*"
 
 jobs:
-  publish-tauri:
+  publish-macos:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            args: --target aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -33,7 +24,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
@@ -44,17 +35,25 @@ jobs:
         working-directory: desktop-app
         run: npm ci
 
-      - name: Build and publish signed updater artifacts
-        uses: tauri-apps/tauri-action@v1
+      - name: Build macOS aarch64
+        working-directory: desktop-app
+        run: npm run tauri build -- --target aarch64-apple-darwin
+
+      - name: Build macOS x86_64
+        working-directory: desktop-app
+        run: npm run tauri build -- --target x86_64-apple-darwin
+
+      - name: Create or update GitHub release
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && '-' || '' }}
-        with:
-          projectPath: desktop-app
-          tagName: v__VERSION__
-          releaseName: Codex Weekly Quota v__VERSION__
-          releaseBody: Download the installer for your platform. The in-app updater uses the signed latest.json manifest from this release.
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          RELEASE_EXISTS=$(gh release view "$VERSION" >/dev/null 2>&1 && echo yes || echo no)
+          if [ "$RELEASE_EXISTS" = "no" ]; then
+            gh release create "$VERSION" \
+              --title "Codex Weekly Quota $VERSION" \
+              --notes "Download the installer for macOS. The in-app updater uses the signed latest.json manifest from this release."
+          fi
+          find desktop-app/src-tauri/target/release/bundle -type f \( -name "*.dmg" -o -name "*.tar.gz" -o -name "*.sig" -o -name "*.xml" \) -print0 | xargs -0 gh release upload "$VERSION" --clobber
